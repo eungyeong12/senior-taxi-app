@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Divider
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,6 +30,7 @@ fun FavoritePlacesScreen(
     onSelect: (String) -> Unit,
     onBack: () -> Unit,
     onSetupHome: () -> Unit,
+    onRename: (String) -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -57,17 +59,22 @@ fun FavoritePlacesScreen(
         LazyColumn(modifier = Modifier.fillMaxWidth(fraction = 0.9f)) {
             items(favorites) { place ->
                 Spacer(Modifier.height(16.dp))
-                Text(
-                    text = place,
-                    style = MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { onSelect(place) }
-                        .height(56.dp),
-                )
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = place,
+                        style = MaterialTheme.typography.headlineMedium,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { onSelect(place) }
+                            .height(56.dp),
+                    )
+                    OutlinedButton(onClick = { onRename(place) }) {
+                        Text("이름 변경", style = MaterialTheme.typography.titleMedium)
+                    }
+                }
                 Divider()
             }
         }

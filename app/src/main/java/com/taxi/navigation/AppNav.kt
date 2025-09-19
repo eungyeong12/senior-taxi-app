@@ -3,18 +3,24 @@ package com.taxi.navigation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.taxi.data.places.PlacesRepositoryImpl
+import com.taxi.domain.repository.PlacesRepository
 import com.taxi.domain.usecase.FetchFirstPlaceSummaryByQueryUseCase
 import com.taxi.domain.usecase.GetCurrentLocationUseCase
 import com.taxi.domain.usecase.ReverseGeocodeUseCase
@@ -23,10 +29,8 @@ import com.taxi.presentation.CallTaxiStatus
 import com.taxi.presentation.CallTaxiUiState
 import com.taxi.presentation.DestinationChoiceScreen
 import com.taxi.presentation.FavoritePlacesScreen
-import com.taxi.presentation.HomeSetupScreen
-import com.taxi.presentation.HomeSetupUiState
-import com.taxi.presentation.HomeSetupViewModel
 import com.taxi.presentation.HubCodeScreen
+import com.taxi.presentation.HomeSetupScreen
 import com.taxi.presentation.VoiceResultScreen
 import kotlinx.coroutines.launch
 
@@ -58,7 +62,7 @@ fun AppNav(
     navController: NavHostController = rememberNavController(),
     onRequestVoice: (onRecognized: (String?) -> Unit) -> Unit,
 ) {
-    val favoritePlaces = listOf("우리집", "큰아들집", "병원", "은행", "영남대")
+    val favoritePlaces = remember { mutableStateListOf("우리집", "큰아들집", "병원", "은행", "영남대") }
     val originText = remember { mutableStateOf<String?>(null) }
     val destinationText = remember { mutableStateOf<String?>(null) }
     val destinationName = remember { mutableStateOf<String?>(null) }
@@ -84,7 +88,7 @@ fun AppNav(
                                     original.contains("병원") -> "의료법인 근원의료재단 경상중앙병원"
                                     else -> sanitized
                                 }
-                                val repo = com.taxi.data.places.PlacesRepositoryImpl(context)
+                                val repo = PlacesRepositoryImpl(context)
                                 val voiceCandidates = when {
                                     mapped.contains("경산중방e편한세상1단지") -> listOf(
                                         "경산중방e편한세상1단지 아파트",
@@ -100,7 +104,7 @@ fun AppNav(
                                 }
 
                                 var usedQuery = voiceCandidates.first()
-                                var foundSummary: com.taxi.domain.repository.PlacesRepository.PlaceSummary? = null
+                                var foundSummary: PlacesRepository.PlaceSummary? = null
                                 var foundPhoto: android.graphics.Bitmap? = null
                                 for (q in voiceCandidates) {
                                     val s = FetchFirstPlaceSummaryByQueryUseCase(repo)(q)
@@ -143,6 +147,9 @@ fun AppNav(
         }
         composable(Routes.Favorites) {
             Box(modifier = androidx.compose.ui.Modifier.fillMaxSize()) {
+                val isRenaming = remember { mutableStateOf(false) }
+                val renameOriginal = remember { mutableStateOf<String?>(null) }
+                val renameText = remember { mutableStateOf("") }
                 FavoritePlacesScreen(
                     favorites = favoritePlaces,
                     onSelect = { place ->
@@ -199,7 +206,12 @@ fun AppNav(
                         }
                     },
                     onBack = { navController.popBackStack() },
-                    onSetupHome = { navController.navigate(Routes.HomeSetup) }
+                    onSetupHome = { navController.navigate(Routes.HomeSetup) },
+                    onRename = { place ->
+                        isRenaming.value = true
+                        renameOriginal.value = place
+                        renameText.value = place
+                    }
                 )
 
                 if (isLoading.value) {
@@ -207,34 +219,35 @@ fun AppNav(
                         CircularProgressIndicator()
                     }
                 }
-            }
-        }
-        composable(Routes.HomeSetup) {
-            val ctx = context
-            val homeVm: HomeSetupViewModel = viewModel(factory = object : androidx.lifecycle.ViewModelProvider.Factory {
-                override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                    val locationRepo = com.taxi.data.location.FusedLocationRepository(ctx)
-                    val homeRepo = com.taxi.data.home.DatastoreHomeRepository(ctx)
-                    val getCurrent = GetCurrentLocationUseCase(locationRepo)
-                    val getHome = com.taxi.domain.usecase.GetHomeLocationUseCase(homeRepo)
-                    val saveHome = com.taxi.domain.usecase.SaveHomeLocationUseCase(homeRepo)
-                    val reverse = ReverseGeocodeUseCase(com.taxi.data.geocoding.AndroidGeocodingRepository(ctx))
-                    val placesRepo = com.taxi.data.places.PlacesRepositoryImpl(ctx)
-                    val fetchPhoto = com.taxi.domain.usecase.FetchPlacePhotoByQueryUseCase(placesRepo)
-                    @Suppress("UNCHECKED_CAST")
-                    return HomeSetupViewModel(getCurrent, getHome, saveHome, reverse, fetchPhoto) as T
-                }
-            })
 
-            var setupState = remember { HomeSetupUiState() }
-            HomeSetupScreen(
-                addressText = setupState.address
-                    ?: setupState.current?.let { "(${it.latitude}, ${it.longitude})" },
-                currentLatLng = setupState.current,
-                onUseCurrentLocation = { homeVm.fetchCurrent { setupState = it } },
-                onSkip = { navController.popBackStack() },
-                onSave = { navController.popBackStack() }
-            )
+                if (isRenaming.value) {
+                    AlertDialog(
+                        onDismissRequest = { isRenaming.value = false },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                val original = renameOriginal.value
+                                val newName = renameText.value
+                                if (!original.isNullOrBlank() && newName.isNotBlank()) {
+                                    val idx = favoritePlaces.indexOf(original)
+                                    if (idx >= 0) favoritePlaces[idx] = newName
+                                }
+                                isRenaming.value = false
+                            }) { Text("확인") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { isRenaming.value = false }) { Text("취소") }
+                        },
+                        title = { Text("이름 변경") },
+                        text = {
+                            TextField(
+                                value = renameText.value,
+                                onValueChange = { renameText.value = it },
+                                singleLine = true
+                            )
+                        }
+                    )
+                }
+            }
         }
         composable(Routes.HubCode) {
             Box(modifier = androidx.compose.ui.Modifier.fillMaxSize()) {
@@ -278,6 +291,12 @@ fun AppNav(
                     }
                 }
             }
+        }
+        composable(Routes.HomeSetup) {
+            HomeSetupScreen(
+                onSaved = { navController.popBackStack() },
+                onBack = { navController.popBackStack() }
+            )
         }
         composable(Routes.VoiceResult) {
             VoiceResultScreen(

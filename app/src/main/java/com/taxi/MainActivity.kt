@@ -19,11 +19,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.taxi.data.repository.FakeTaxiRepository
-import com.taxi.domain.usecase.GetNearbyTaxisUseCase
 import com.taxi.navigation.AppNav
 import com.taxi.presentation.TaxiUiState
 import com.taxi.ui.theme.TaxiTheme
@@ -40,15 +35,6 @@ class MainActivity : ComponentActivity() {
                         .windowInsetsPadding(WindowInsets.systemBars),
                     color = Color.White
                 ) {
-                    val vm: TaxiViewModel = viewModel(factory = object : ViewModelProvider.Factory {
-                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                            val repo = FakeTaxiRepository()
-                            val usecase = GetNearbyTaxisUseCase(repo)
-                            @Suppress("UNCHECKED_CAST")
-                            return TaxiViewModel(usecase) as T
-                        }
-                    })
-
                     var state by remember { mutableStateOf(TaxiUiState()) }
                     val activity = this@MainActivity
 
